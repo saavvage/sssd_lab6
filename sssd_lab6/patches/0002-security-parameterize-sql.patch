@@ -1,0 +1,42 @@
+From 222222222 Mon Sep 17 00:00:00 2001
+From: Security Fixer <sec@example.com>
+Subject: [PATCH 2/3] security: parameterize SQL and escape LIKE (CWE-89)
+
+--- a/app.py
++++ b/app.py
+@@
+ @app.get("/search")
+ def search():
+     q = request.args.get("q","")
+     db = get_db()
+-    # intentionally vulnerable
+-    sql = f"SELECT id, name, price FROM products WHERE name LIKE '%{q}%' ORDER BY id DESC"
+-    rows = db.execute(sql).fetchall()
++    # safe: parameterized query + escape LIKE wildcards
++    q = q.replace("%", "\\%").replace("_", "\\_")
++    like = f"%{q}%"
++    sql = "SELECT id, name, price FROM products WHERE name LIKE ? ESCAPE '\\' ORDER BY id DESC LIMIT 50"
++    rows = db.execute(sql, (like,)).fetchall()
+     return jsonify([dict(r) for r in rows])
+--- a/tests/test_security.py
++++ b/tests/test_security.py
+@@
+-def test_sql_search_injection_possible():
+-    # Shows current behavior is injectable. Should fail AFTER fix.
+-    from app import DB_PATH
+-    con = sqlite3.connect(DB_PATH)
+-    cur = con.cursor()
+-    # A naive check: try to inject wildcard to fetch all
+-    payload = "' OR 1=1 --"
+-    sql = f"SELECT id, name FROM products WHERE name LIKE '%{payload}%'"
+-    cur.execute(sql)
+-    rows = cur.fetchall()
+-    # If DB didn't error, "injection path exists" in the app too
+-    assert rows is not None  # placeholder to keep test true pre-fix
++def test_sql_search_is_parameterized():
++    # If we search with injection payload, we should get 0 results, not crash or return all
++    from app import app
++    client = app.test_client()
++    resp = client.get("/search?q=' OR 1=1 --")
++    assert resp.status_code == 200
++    assert resp.get_json() == []

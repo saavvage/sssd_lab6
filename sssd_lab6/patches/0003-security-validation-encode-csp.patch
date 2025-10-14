@@ -1,0 +1,63 @@
+From 333333333 Mon Sep 17 00:00:00 2001
+From: Security Fixer <sec@example.com>
+Subject: [PATCH 3/3] security: validation, HTML encoding, CSP (CWE-20/CWE-79)
+
+--- a/app.py
++++ b/app.py
+@@
+ from markupsafe import Markup
++import re
+@@
+ @app.get("/comments")
+ def get_comments():
+     db = get_db()
+     rows = db.execute("SELECT author, body FROM comments ORDER BY id DESC").fetchall()
+-    # explicitly mark as safe -> XSS
+-    rendered = [Markup(f"<p><b>{r['author']}</b>: {r['body']}</p>") for r in rows]
+-    return render_template("comments.html", comments=rendered)
++    return render_template("comments.html", comments=rows)
+@@
+ @app.post("/comments")
+ def post_comment():
+     author = request.form.get("author","anonymous")
+     body = request.form.get("body","")
+-    db = get_db()
+-    db.execute("INSERT INTO comments(author, body) VALUES (?, ?)", (author, body))
+-    db.commit()
+-    return redirect(url_for("get_comments"))
++    if not (1 <= len(author) <= 40):
++        return "Bad author", 400
++    if not (1 <= len(body) <= 500):
++        return "Bad body", 400
++    if re.search(r"<script|</script", body, flags=re.I):
++        return "Disallowed HTML", 400
++    db = get_db()
++    db.execute("INSERT INTO comments(author, body) VALUES (?, ?)", (author, body))
++    db.commit()
++    return redirect(url_for("get_comments"))
++
++@app.after_request
++def add_csp(resp):
++    resp.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'"
++    return resp
+--- a/templates/comments.html
++++ b/templates/comments.html
+@@
+-  <h1>Comments (unsafe rendering)</h1>
+-  {% for c in comments %}
+-    {{ c }}
+-  {% endfor %}
++  <h1>Comments (safe rendering)</h1>
++  {% for r in comments %}
++    <p><b>{{ r.author }}</b>: {{ r.body }}</p>
++  {% endfor %}
+   <p><a href="/">Back</a></p>
+--- a/tests/test_security.py
++++ b/tests/test_security.py
+@@
++def test_xss_is_encoded_and_rejected():
++    from app import app
++    client = app.test_client()
++    bad = "<script>alert(1)</script>"
++    r = client.post("/comments", data={"author":"a","body":bad})
++    assert r.status_code == 400

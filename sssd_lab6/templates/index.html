@@ -1,0 +1,28 @@
+<!doctype html>
+<html><body>
+  <h1>Demo app (vulnerable)</h1>
+  <form action="/register" method="post">
+    <h3>Register</h3>
+    <input name="username" placeholder="username">
+    <input name="password" placeholder="password" type="password">
+    <button type="submit">Register</button>
+  </form>
+  <form action="/login" method="post">
+    <h3>Login</h3>
+    <input name="username" placeholder="username">
+    <input name="password" placeholder="password" type="password">
+    <button type="submit">Login</button>
+  </form>
+  <form action="/comments" method="post">
+    <h3>Add comment</h3>
+    <input name="author" placeholder="author">
+    <input name="body" placeholder="comment">
+    <button type="submit">Add</button>
+  </form>
+  <p><a href="/comments">View comments</a></p>
+  <form action="/search" method="get">
+    <h3>Search products</h3>
+    <input name="q" placeholder="search term">
+    <button type="submit">Search</button>
+  </form>
+</body></html>
