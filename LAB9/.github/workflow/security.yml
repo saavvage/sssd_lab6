@@ -1,0 +1,67 @@
+name: CI-Security
+on: [push, pull_request]
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -r LAB9/requirements.txt
+      - run: |
+          python - <<'PY'
+          import sys
+          sys.path.append("LAB9")
+          import app
+          print("App imported OK")
+          PY
+  bandit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install bandit
+      - run: |
+          bandit -r LAB9 -f html -o bandit.html || true
+          bandit -r LAB9 -f sarif -o bandit.sarif || true
+      - uses: actions/upload-artifact@v4
+        with: { name: bandit-report, path: bandit.html }
+      - uses: github/codeql-action/upload-sarif@v3
+        with: { sarif_file: bandit.sarif }
+  semgrep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install semgrep
+      - run: |
+          semgrep --config p/default --sarif --output semgrep.sarif LAB9 || true
+          semgrep --config p/default --json  --output semgrep.json  LAB9 || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-reports
+          path: |
+            semgrep.sarif
+            semgrep.json
+      - uses: github/codeql-action/upload-sarif@v3
+        with: { sarif_file: semgrep.sarif }
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install pip-audit cyclonedx-bom
+      - run: |
+          pip-audit -r LAB9/requirements.txt -f json -o pip_audit.json || true
+          cyclonedx-bom -o sbom.json || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sca-reports
+          path: |
+            pip_audit.json
+            sbom.json
