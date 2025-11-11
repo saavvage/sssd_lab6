@@ -65,3 +65,71 @@ jobs:
           path: |
             pip_audit.json
             sbom.json
+  bandit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Bandit
+        run: pip install bandit
+      - name: Run Bandit
+        run: |
+          bandit -r LAB9 -f html -o bandit.html || true
+          bandit -r LAB9 -f sarif -o bandit.sarif || true
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit.html
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bandit.sarif
+
+  semgrep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Semgrep
+        run: pip install semgrep
+      - name: Run Semgrep
+        run: |
+          semgrep --config p/default --sarif --output semgrep.sarif LAB9 || true
+          semgrep --config p/default --json --output semgrep.json LAB9 || true
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-reports
+          path: |
+            semgrep.sarif
+            semgrep.json
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pip-audit
+        run: pip install pip-audit cyclonedx-bom
+      - name: Run SCA
+        run: |
+          pip-audit -r LAB9/requirements.txt -f json -o pip_audit.json || true
+          cyclonedx-bom -o sbom.json || true
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sca-reports
+          path: |
+            pip_audit.json
+            sbom.json
